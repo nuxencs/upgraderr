@@ -36,10 +36,10 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/antonmedv/expr"
-	"github.com/antonmedv/expr/vm"
 	"github.com/autobrr/go-qbittorrent"
 	"github.com/avast/retry-go"
+	"github.com/expr-lang/expr"
+	"github.com/expr-lang/expr/vm"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/kylesanderson/go-jackett"
