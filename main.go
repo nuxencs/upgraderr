@@ -1240,7 +1240,7 @@ func handleAutobrrFilterUpdate(w http.ResponseWriter, r *http.Request) {
 		Shows string
 	}{}
 
-	buf := make([]string, 0)
+	buf := make([]string, 0, len(singlemap))
 	for k := range singlemap {
 		if len(k) < 1 {
 			continue
