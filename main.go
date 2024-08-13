@@ -1240,17 +1240,24 @@ func handleAutobrrFilterUpdate(w http.ResponseWriter, r *http.Request) {
 		Shows string
 	}{}
 
+	buf := make([]string, 0)
 	for k := range singlemap {
 		if len(k) < 1 {
 			continue
 		}
 
+		buf = append(buf, k)
+	}
+	singlemap = nil
+	
+	sort.Strings(buf)
+	for _, k := range buf {
 		submit.Shows += k + ","
 	}
 
 	submit.Shows = strings.Trim(submit.Shows, " ,")
 
-	singlemap = nil
+
 	body, err := json.Marshal(submit)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Unable to marshall qbittorrent data: %q\n", err), 465)
