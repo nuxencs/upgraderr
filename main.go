@@ -170,16 +170,15 @@ func (c *upgradereq) getAllTorrents() (*timeentry, error) {
 
 	var te ttlcache.Item[*timeentry]
 	var val *timeentry
-	resetOrRun := func() bool {
+	resetOrRun := func() *sync.RWMutex {
 		te = getOrInitialize()
 		val = te.GetValue()
-		return val.e != nil
+		return &val.m
 	}
 
 	resetOrRun()
 	err := GetOrUpdate(func() *sync.RWMutex {
-		resetOrRun()
-		return &val.m
+		return resetOrRun()
 	}, func() bool {
 		return val.e != nil
 	}, func() error {
