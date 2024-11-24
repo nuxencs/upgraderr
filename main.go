@@ -384,46 +384,11 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		if res := checkHDR(&requestrls, &child); res != nil && res.t != requestrls.t {
-			parent = *res
-			code = 202
-			break
-		}
-
-		if res := checkChannels(&requestrls, &child); res != nil && res.t != requestrls.t {
-			parent = *res
-			code = 203
-			break
-		}
-
-		if res := checkSource(&requestrls, &child); res != nil && res.t != requestrls.t {
-			parent = *res
-			code = 204
-			break
-		}
-
-		if res := checkAudio(&requestrls, &child); res != nil && res.t != requestrls.t {
-			parent = *res
-			code = 205
-			break
-		}
-
-		if res := checkExtension(&requestrls, &child); res != nil && res.t != requestrls.t {
-			parent = *res
-			code = 206
-			break
-		}
-
-		if res := checkLanguage(&requestrls, &child); res != nil && res.t != requestrls.t {
-			parent = *res
-			code = 207
-			break
-		}
-
-		if res := checkReplacement(&requestrls, &child); res != nil && res.t != requestrls.t {
-			parent = *res
-			code = 208
-			break
+		for i, f := range []func(*Entry, *Entry) *Entry{checkHDR, checkChannels, checkSource, checkAudio, checkExtension, checkLanguage, checkReplacement} {
+			if res := f(&requestrls, &child); res != nil && res.t != requestrls.t {
+				parent = *res
+				code = 202 + i
+			}
 		}
 	}
 
