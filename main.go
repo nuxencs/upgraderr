@@ -1992,8 +1992,9 @@ func handleTorznabCrossSearch(w http.ResponseWriter, r *http.Request) {
 func CacheTitle(title string) *rls.Release {
 	r, ok := titlemap.Get(title)
 	if !ok {
-		r = rls.ParseString(title)
-		titlemap.Set(title, r, ttlcache.DefaultTTL)
+		local := rls.ParseString(title)
+		titlemap.Set(title, &local, ttlcache.DefaultTTL)
+		r, _ = titlemap.Get(title)
 	}
 
 	return r
