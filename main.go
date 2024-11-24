@@ -158,7 +158,8 @@ func (c *upgradereq) getAllTorrents() *timeentry {
 		}
 
 		res := &timeentry{
-			tc: timecache.New(timecache.Options{})}
+			tc: timecache.New(timecache.Options{}),
+		}
 
 		torrentmap.Set(set, res, ttlcache.DefaultTTL)
 		return res
@@ -1990,8 +1991,9 @@ func CacheTitle(title string) *rls.Release {
 	r, ok := titlemap.Get(title)
 	if !ok {
 		local := rls.ParseString(title)
-		titlemap.Set(title, &local, ttlcache.DefaultTTL)
-		r, _ = titlemap.Get(title)
+		r = &local
+
+		titlemap.Set(title, r, ttlcache.DefaultTTL)
 	}
 
 	return r
