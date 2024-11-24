@@ -870,7 +870,7 @@ func getFormattedTitle(title string) string {
 }
 
 func getReleaseTitle(r *rls.Release) string {
-	s := fmt.Sprintf("%s%s%s%04d%02d%02d%02d%03d", rls.MustNormalize(r.Artist), rls.MustNormalize(r.Title), rls.MustNormalize(r.Subtitle), r.Year, r.Month, r.Day, r.Series, r.Episode)
+	s := fmt.Sprintf("%s%s%s%s%s%04d%02d%02d%02d%03d", rls.MustNormalize(r.Artist), rls.MustNormalize(r.Title), rls.MustNormalize(r.Subtitle), rls.MustNormalize(r.Alt), rls.MustNormalize(r.Version), r.Year, r.Month, r.Day, r.Series, r.Episode)
 	for _, a := range r.Cut {
 		s += rls.MustNormalize(a)
 	}
