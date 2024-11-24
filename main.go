@@ -2026,6 +2026,7 @@ func GetOrUpdate(m *sync.RWMutex, read func() bool, update func() error) error {
 		m.RUnlock()
 		return nil
 	}
+	m.RUnlock()
 
 	m.Lock()
 	defer m.Unlock()
