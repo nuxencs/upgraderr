@@ -207,6 +207,7 @@ func (c *upgradereq) getAllTorrents() (*timeentry, error) {
 			dur = time.Second * 1
 		}
 
+		fmt.Printf("Cache Duration %s: %v\n", set.Host, dur)
 		torrentmap.Set(set, val, dur)
 		return nil
 	})
