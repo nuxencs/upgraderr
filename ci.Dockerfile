@@ -2,7 +2,7 @@
 FROM --platform=$BUILDPLATFORM golang:1.23-alpine3.20 AS app-builder
 RUN apk add --no-cache git tzdata
 
-ENV SERVICE=autobrr
+ENV SERVICE=upgraderr
 
 WORKDIR /src
 
