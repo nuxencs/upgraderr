@@ -8,7 +8,7 @@ import (
 )
 
 const NoTTL time.Duration = 0
-const DefaultTTL time.Duration = -1
+const DefaultTTL time.Duration = time.Nanosecond * 1
 
 type Cache[K comparable, V any] struct {
 	tc timecache.Cache
