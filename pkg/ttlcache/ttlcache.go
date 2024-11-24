@@ -47,6 +47,28 @@ func (c *Cache[K, V]) GetItem(key K) (Item[V], bool) {
 	return it, ok
 }
 
+func (c *Cache[K, V]) GetOrSet(key K, value V, duration time.Duration) (V, bool) {
+	it, ok := c.GetOrSetItem(key, value, duration)
+	if !ok {
+		return *new(V), ok
+	}
+
+	return it.GetValue(), ok
+}
+
+func (c *Cache[K, V]) GetOrSetItem(key K, value V, duration time.Duration) (Item[V], bool) {
+	if c.o.defaultTTL == NoTTL && duration == DefaultTTL {
+		duration = NoTTL
+	}
+
+	it, ok := c.getOrSet(key, Item[V]{v: value, d: duration})
+	if !ok {
+		return Item[V]{}, ok
+	}
+
+	return it, ok
+}
+
 func (c *Cache[K, V]) Set(key K, value V, duration time.Duration) bool {
 	c.SetItem(key, value, duration)
 	return true

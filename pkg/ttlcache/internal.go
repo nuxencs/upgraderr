@@ -24,6 +24,14 @@ func (c *Cache[K, V]) set(key K, it Item[V]) Item[V] {
 	return it
 }
 
+func (c *Cache[K, V]) getOrSet(key K, it Item[V]) (Item[V], bool) {
+	if v, ok := c.get(key); ok {
+		return v, ok
+	}
+
+	return c.set(key, it), true
+}
+
 func (c *Cache[K, V]) delete(key K, reason DeallocationReason) {
 	var v Item[V]
 	c.l.Lock()
