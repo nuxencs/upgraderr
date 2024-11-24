@@ -14,13 +14,14 @@ func (c *Cache[K, V]) get(key K) (Item[V], bool) {
 	return v, ok
 }
 
-func (c *Cache[K, V]) set(key K, it Item[V]) {
+func (c *Cache[K, V]) set(key K, it Item[V]) Item[V] {
 	it.t = c.getDuration(it.d)
 
 	c.l.Lock()
 	defer c.l.Unlock()
 	c.m[key] = it
 	c.ch <- it.t
+	return it
 }
 
 func (c *Cache[K, V]) delete(key K, reason DeallocationReason) {

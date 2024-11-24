@@ -50,12 +50,16 @@ func (c *Cache[K, V]) GetItem(key K) (Item[V], bool) {
 }
 
 func (c *Cache[K, V]) Set(key K, value V, duration time.Duration) bool {
+	c.SetItem(key, value, duration)
+	return true
+}
+
+func (c *Cache[K, V]) SetItem(key K, value V, duration time.Duration) Item[V] {
 	if c.o.defaultTTL == NoTTL && duration == DefaultTTL {
 		duration = NoTTL
 	}
 
-	c.set(key, Item[V]{v: value, d: duration})
-	return true
+	return c.set(key, Item[V]{v: value, d: duration})
 }
 
 func (c *Cache[K, V]) Delete(key K) {

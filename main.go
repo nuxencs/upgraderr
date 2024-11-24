@@ -72,7 +72,6 @@ type upgradereq struct {
 
 type timeentry struct {
 	e   map[string][]qbittorrent.Torrent
-	t   time.Time
 	tc  *timecache.Cache
 	err error
 	sync.Mutex
@@ -86,7 +85,8 @@ var clientmap = ttlcache.New[qbittorrent.Config, *qbittorrent.Client](
 
 var torrentmap = ttlcache.New[qbittorrent.Config, *timeentry](
 	ttlcache.Options[qbittorrent.Config, *timeentry]{}.
-		SetDefaultTTL(time.Second * 3).
+		SetDefaultTTL(time.Minute * 5).
+		SetTimerResolution(time.Second * 1).
 		DisableUpdateTime(true))
 
 var titlemap = ttlcache.New[string, *rls.Release](
@@ -153,8 +153,8 @@ func (c *upgradereq) getAllTorrents() *timeentry {
 		Password: c.Password,
 	}
 
-	f := func() *timeentry {
-		te, ok := torrentmap.Get(set)
+	f := func() ttlcache.Item[*timeentry] {
+		te, ok := torrentmap.GetItem(set)
 		if ok {
 			return te
 		}
@@ -163,22 +163,23 @@ func (c *upgradereq) getAllTorrents() *timeentry {
 			tc: timecache.New(timecache.Options{}),
 		}
 
-		torrentmap.Set(set, res, ttlcache.DefaultTTL)
-		return res
+		return torrentmap.SetItem(set, res, ttlcache.DefaultTTL)
 	}
 
 	res := f()
-	cur := res.tc.Now()
-	if c.CacheBypass == 0 && res.t.After(cur) {
-		return res
+	val := res.GetValue()
+	cur := val.tc.Now()
+	if c.CacheBypass == 0 && len(val.e) != 0 && res.GetTime().After(cur) {
+		return val
 	}
 
-	res.Lock()
-	defer res.Unlock()
+	val.Lock()
+	defer val.Unlock()
 
 	res = f()
-	if c.CacheBypass == 0 && res.t.After(cur) {
-		return res
+	val = res.GetValue()
+	if c.CacheBypass == 0 && res.GetTime().After(cur) {
+		return val
 	}
 
 	torrents, err := c.Client.GetTorrents(qbittorrent.TorrentFilterOptions{})
@@ -186,16 +187,16 @@ func (c *upgradereq) getAllTorrents() *timeentry {
 		return &timeentry{err: err, tc: timecache.New(timecache.Options{})}
 	}
 
-	nt := res.tc.Now()
-	res = &timeentry{e: make(map[string][]qbittorrent.Torrent), tc: timecache.New(timecache.Options{})}
+	nt := val.tc.Now()
+	val.e = make(map[string][]qbittorrent.Torrent)
 
 	for _, t := range torrents {
 		s := getFormattedTitle(CacheTitle(t.Name))
-		res.e[s] = append(res.e[s], t)
+		val.e[s] = append(val.e[s], t)
 	}
 
-	torrentmap.Set(set, res, nt.Sub(cur))
-	return res
+	torrentmap.Set(set, val, nt.Sub(cur))
+	return val
 }
 
 func (c *upgradereq) getFiles(hash string) (*qbittorrent.TorrentFiles, error) {
