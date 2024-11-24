@@ -177,7 +177,9 @@ func (c *upgradereq) getAllTorrents() (*timeentry, error) {
 	}
 
 	resetOrRun()
-	err := GetOrUpdate(&val.m, func() bool {
+	err := GetOrUpdate(func() *sync.RWMutex {
+		return &val.m
+	}, func() bool {
 		return resetOrRun()
 	}, func() error {
 		if resetOrRun() {
@@ -2020,7 +2022,8 @@ func CacheTitle(title string) *rls.Release {
 	return r
 }
 
-func GetOrUpdate(m *sync.RWMutex, read func() bool, update func() error) error {
+func GetOrUpdate(mutex func() *sync.RWMutex, read func() bool, update func() error) error {
+	m := mutex()
 	m.RLock()
 	if read() {
 		m.RUnlock()
@@ -2028,6 +2031,7 @@ func GetOrUpdate(m *sync.RWMutex, read func() bool, update func() error) error {
 	}
 	m.RUnlock()
 
+	m = mutex()
 	m.Lock()
 	defer m.Unlock()
 	return update()
