@@ -71,9 +71,8 @@ type upgradereq struct {
 }
 
 type timeentry struct {
-	e  map[string][]qbittorrent.Torrent
-	tc *timecache.Cache
-	m  sync.RWMutex
+	e map[string][]qbittorrent.Torrent
+	m sync.RWMutex
 }
 
 var db *bolt.DB
@@ -166,7 +165,7 @@ func (c *upgradereq) getAllTorrents() (*timeentry, error) {
 			}
 		}
 
-		return torrentmap.SetItem(set, &timeentry{tc: timecache.New(timecache.Options{})}, ttlcache.DefaultTTL)
+		return torrentmap.SetItem(set, &timeentry{}, ttlcache.DefaultTTL)
 	}
 
 	var te ttlcache.Item[*timeentry]
@@ -197,7 +196,7 @@ func (c *upgradereq) getAllTorrents() (*timeentry, error) {
 			val.e[s] = append(val.e[s], t)
 		}
 
-		torrentmap.Set(set, val, val.tc.Now().Sub(te.GetTime().Add(-te.GetDuration())))
+		torrentmap.Set(set, val, globalTime.Now().Sub(te.GetTime().Add(-te.GetDuration())))
 		return nil
 	})
 
