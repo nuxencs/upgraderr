@@ -29,7 +29,7 @@ func (c *Cache[K, V]) Get(key K) (V, bool) {
 		return *new(V), ok
 	}
 
-	if !it.t.IsZero() && c.getDuration(it.d).After(it.t) {
+	if !c.o.noUpdateTime && !it.t.IsZero() && c.getDuration(it.d).After(it.t) {
 		c.set(key, it)
 	}
 
@@ -79,5 +79,10 @@ func (o Options[K, V]) SetDefaultTTL(d time.Duration) Options[K, V] {
 
 func (o Options[K, V]) SetDeallocationFunc(f DeallocationFunc[K, V]) Options[K, V] {
 	o.deallocationFunc = f
+	return o
+}
+
+func (o Options[K, V]) DisableUpdateTime(val bool) Options[K, V] {
+	o.noUpdateTime = val
 	return o
 }

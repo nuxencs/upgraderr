@@ -85,7 +85,8 @@ var clientmap = ttlcache.New[qbittorrent.Config, *qbittorrent.Client](
 
 var torrentmap = ttlcache.New[qbittorrent.Config, *timeentry](
 	ttlcache.Options[qbittorrent.Config, *timeentry]{}.
-		SetDefaultTTL(time.Second * 3))
+		SetDefaultTTL(time.Second * 3).
+		DisableUpdateTime(true))
 
 var titlemap = ttlcache.New[string, rls.Release](
 	ttlcache.Options[string, rls.Release]{}.

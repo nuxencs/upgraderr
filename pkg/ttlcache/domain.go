@@ -28,6 +28,7 @@ type Options[K comparable, V any] struct {
 	defaultTTL        time.Duration
 	defaultResolution time.Duration
 	deallocationFunc  DeallocationFunc[K, V]
+	noUpdateTime      bool
 }
 
 type DeallocationReason int
