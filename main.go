@@ -202,7 +202,12 @@ func (c *upgradereq) getAllTorrents() (*timeentry, error) {
 			val.e[s] = append(val.e[s], t)
 		}
 
-		torrentmap.Set(set, val, globalTime.Now().Sub(te.GetTime().Add(-te.GetDuration())))
+		dur := globalTime.Now().Sub(te.GetTime().Add(-te.GetDuration()))
+		if dur < time.Second*1 {
+			dur = time.Second * 1
+		}
+
+		torrentmap.Set(set, val, dur)
 		return nil
 	})
 
