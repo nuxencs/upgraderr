@@ -347,9 +347,8 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var v []qbittorrent.Torrent
-	var ok bool
-	if v, ok = mp.e[CacheFormatted(req.Name)]; !ok {
+	v, ok := mp.e[CacheFormatted(req.Name)]
+	if !ok {
 		http.Error(w, fmt.Sprintf("Unique submission: %q\n", req.Name), 200)
 		return
 	}
@@ -422,14 +421,14 @@ func handleClean(w http.ResponseWriter, r *http.Request) {
 	t := globalTime.Now().Unix()
 	hashes := make([]string, 0)
 	for _, v := range mp.e {
-		var parent Entry
-		parentMap := make(map[string]int)
-		for _, childtor := range v {
-			child := Entry{t: childtor, r: CacheTitle(childtor.Name)}
-			if len(parent.t.Hash) == 0 {
-				parent = child
-			}
+		if len(v) == 0 {
+			continue
+		}
 
+		parent := Entry{r: CacheTitle(v[0].Name), t: v[0]}
+		parentMap := make(map[string]int)
+		for _, t := range v {
+			child := Entry{t: t, r: CacheTitle(t.Name)}
 			if rls.Compare(*parent.r, *child.r) == 0 {
 				parentMap[child.t.Name]++
 				continue
@@ -438,59 +437,60 @@ func handleClean(w http.ResponseWriter, r *http.Request) {
 			if res := checkResolution(&parent, &child); res != nil {
 				src := checkSource(&parent, &child)
 				if src == nil {
-					parentMap = make(map[string]int)
 					parent = *res
+					parentMap = map[string]int{parent.t.Name: 1}
 					continue
 				} else if src.t.Hash == res.t.Hash {
-					parentMap = make(map[string]int)
 					parent = *src
+					parentMap = map[string]int{parent.t.Name: 1}
 					continue
 				}
 			}
 
+			bFailed := false
 			for _, f := range []func(*Entry, *Entry) *Entry{checkHDR, checkChannels, checkSource, checkAudio, checkExtension, checkLanguage, checkReplacement} {
 				if res := f(&parent, &child); res != nil && res.t.Hash != parent.t.Hash {
 					parent = *res
-					parentMap = make(map[string]int)
+					parentMap = map[string]int{parent.t.Name: 1}
+					bFailed = true
 					break
 				}
 			}
 
-			// fmt.Printf("Made it to Loop: %q|%q\n", parent.t.Name, child.t.Name)
+			if !bFailed {
+				parentMap[child.t.Name]++
+			}
 		}
 
-		if len(parent.t.Hash) == 0 {
+		if len(parentMap) == 0 {
 			continue
 		}
 
 		var parentName string
-		if len(parentMap) == 0 {
-			parentName = parent.t.Name
-		} else {
-			parentNumber := 0
-			for k, i := range parentMap {
-				if i > parentNumber {
-					parentNumber = i
-					parentName = k
-				}
+		parentNumber := 0
+		for k, i := range parentMap {
+			if i > parentNumber {
+				parentNumber = i
+				parentName = k
 			}
 		}
 
 		fmt.Printf("Parent: %q\n", parentName)
-		hashMap := make(map[string]struct{})
+		parentrls := *CacheTitle(parentName)
+
 		for _, child := range v {
-			if child.Name == parentName {
+			if rls.Compare(*CacheTitle(child.Name), parentrls) == 0 {
 				continue
 			}
 
 			bContinue := false
-			childHashes := make([]string, 0)
+			childHashes := make([]string, 0, len(v))
 			for _, subChild := range v {
 				if rls.Compare(*CacheTitle(subChild.Name), *CacheTitle(child.Name)) != 0 {
 					continue
 				}
 
-				if subChild.CompletionOn == 0 || t-int64(subChild.CompletionOn) < 1209600 {
+				if subChild.CompletionOn < 1 || t-int64(subChild.CompletionOn) < 1209600 {
 					bContinue = true
 					break
 				}
@@ -503,17 +503,7 @@ func handleClean(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			for _, h := range childHashes {
-				hashMap[h] = struct{}{}
-			}
-		}
-
-		if len(hashMap) == 0 {
-			continue
-		}
-
-		for k := range hashMap {
-			hashes = append(hashes, k)
+			hashes = append(hashes, childHashes...)
 		}
 	}
 
