@@ -202,7 +202,7 @@ func (c *upgradereq) getAllTorrents() (*timeentry, error) {
 			val.e[s] = append(val.e[s], t)
 		}
 
-		dur := globalTime.Now().Sub(te.GetTime().Add(-te.GetDuration()))
+		dur := te.GetTime().Add(-te.GetDuration()).Sub(globalTime.Now())
 		if dur < time.Second*1 {
 			dur = time.Second * 1
 		}
