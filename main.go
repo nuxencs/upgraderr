@@ -342,91 +342,92 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var requestrls Entry
-	requestrls.r = CacheTitle(req.Name)
+	var v []qbittorrent.Torrent
+	var ok bool
+	if v, ok = mp.e[CacheFormatted(req.Name)]; !ok {
+		http.Error(w, fmt.Sprintf("Unique submission: %q\n", req.Name), 200)
+		return
+	}
 
-	if v, ok := mp.e[CacheFormatted(req.Name)]; ok {
-		code := 0
-		var parent Entry
-		for _, childtor := range v {
-			child := Entry{t: childtor, r: CacheTitle(childtor.Name)}
-			if rls.Compare(*requestrls.r, *child.r) == 0 {
-				if child.t.Progress < parent.t.Progress {
-					code = 240 + int(parent.t.Progress*10.0)
-					continue
-				}
-
-				parent = child
-				code = 240 + int(child.t.Progress*10.0)
-				if code >= 250 {
-					code = 250
-					/* wtf. API breakage... but assume it's ok */
-					break
-				}
-
+	code := 0
+	var parent Entry
+	requestrls := Entry{r: CacheTitle(req.Name)}
+	for _, childtor := range v {
+		child := Entry{t: childtor, r: CacheTitle(childtor.Name)}
+		if rls.Compare(*requestrls.r, *child.r) == 0 {
+			if child.t.Progress < parent.t.Progress {
+				code = 240 + int(parent.t.Progress*10.0)
 				continue
 			}
 
-			if res := checkResolution(&requestrls, &child); res != nil && res.t != requestrls.t {
-				if src := checkSource(&requestrls, &child); src == nil || src.t != requestrls.t {
-					parent = *res
-					code = 201
-					break
-				}
-			}
-
-			if res := checkHDR(&requestrls, &child); res != nil && res.t != requestrls.t {
-				parent = *res
-				code = 202
+			parent = child
+			code = 240 + int(child.t.Progress*10.0)
+			if code >= 250 {
+				code = 250
+				/* wtf. API breakage... but assume it's ok */
 				break
 			}
 
-			if res := checkChannels(&requestrls, &child); res != nil && res.t != requestrls.t {
-				parent = *res
-				code = 203
-				break
-			}
+			continue
+		}
 
-			if res := checkSource(&requestrls, &child); res != nil && res.t != requestrls.t {
+		if res := checkResolution(&requestrls, &child); res != nil && res.t != requestrls.t {
+			if src := checkSource(&requestrls, &child); src == nil || src.t != requestrls.t {
 				parent = *res
-				code = 204
-				break
-			}
-
-			if res := checkAudio(&requestrls, &child); res != nil && res.t != requestrls.t {
-				parent = *res
-				code = 205
-				break
-			}
-
-			if res := checkExtension(&requestrls, &child); res != nil && res.t != requestrls.t {
-				parent = *res
-				code = 206
-				break
-			}
-
-			if res := checkLanguage(&requestrls, &child); res != nil && res.t != requestrls.t {
-				parent = *res
-				code = 207
-				break
-			}
-
-			if res := checkReplacement(&requestrls, &child); res != nil && res.t != requestrls.t {
-				parent = *res
-				code = 208
+				code = 201
 				break
 			}
 		}
 
-		if code >= 240 && code <= 250 {
-			http.Error(w, fmt.Sprintf("Cross submission: %q\n", req.Name), code)
-		} else if code > 200 && code < 240 {
-			http.Error(w, fmt.Sprintf("Not an upgrade submission: %q => %q\n", req.Name, parent.t.Name), code)
-		} else {
-			http.Error(w, fmt.Sprintf("Upgrade submission: %q\n", req.Name), 200)
+		if res := checkHDR(&requestrls, &child); res != nil && res.t != requestrls.t {
+			parent = *res
+			code = 202
+			break
 		}
+
+		if res := checkChannels(&requestrls, &child); res != nil && res.t != requestrls.t {
+			parent = *res
+			code = 203
+			break
+		}
+
+		if res := checkSource(&requestrls, &child); res != nil && res.t != requestrls.t {
+			parent = *res
+			code = 204
+			break
+		}
+
+		if res := checkAudio(&requestrls, &child); res != nil && res.t != requestrls.t {
+			parent = *res
+			code = 205
+			break
+		}
+
+		if res := checkExtension(&requestrls, &child); res != nil && res.t != requestrls.t {
+			parent = *res
+			code = 206
+			break
+		}
+
+		if res := checkLanguage(&requestrls, &child); res != nil && res.t != requestrls.t {
+			parent = *res
+			code = 207
+			break
+		}
+
+		if res := checkReplacement(&requestrls, &child); res != nil && res.t != requestrls.t {
+			parent = *res
+			code = 208
+			break
+		}
+	}
+
+	if code >= 240 && code <= 250 {
+		http.Error(w, fmt.Sprintf("Cross submission: %q\n", req.Name), code)
+	} else if code > 200 && code < 240 {
+		http.Error(w, fmt.Sprintf("Not an upgrade submission: %q => %q\n", req.Name, parent.t.Name), code)
 	} else {
-		http.Error(w, fmt.Sprintf("Unique submission: %q\n", req.Name), 200)
+		http.Error(w, fmt.Sprintf("Upgrade submission: %q\n", req.Name), 200)
 	}
 }
 
