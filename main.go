@@ -476,17 +476,18 @@ func handleClean(w http.ResponseWriter, r *http.Request) {
 		}
 
 		fmt.Printf("Parent: %q\n", parentName)
-		parentrls := *CacheTitle(parentName)
 
+		parentrls := *CacheTitle(parentName)
 		for _, child := range v {
-			if rls.Compare(*CacheTitle(child.Name), parentrls) == 0 {
+			childrls := *CacheTitle(child.Name)
+			if rls.Compare(childrls, parentrls) == 0 {
 				continue
 			}
 
 			bContinue := false
 			childHashes := make([]string, 0, len(v))
 			for _, subChild := range v {
-				if rls.Compare(*CacheTitle(subChild.Name), *CacheTitle(child.Name)) != 0 {
+				if rls.Compare(*CacheTitle(subChild.Name), childrls) != 0 {
 					continue
 				}
 
