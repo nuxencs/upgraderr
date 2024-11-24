@@ -2,7 +2,7 @@ package ttlcache
 
 import "time"
 
-func (c *Cache[K, V]) get(key K) (item[V], bool) {
+func (c *Cache[K, V]) get(key K) (Item[V], bool) {
 	c.l.RLock()
 	defer c.l.RUnlock()
 	v, ok := c.m[key]
@@ -14,7 +14,7 @@ func (c *Cache[K, V]) get(key K) (item[V], bool) {
 	return v, ok
 }
 
-func (c *Cache[K, V]) set(key K, it item[V]) {
+func (c *Cache[K, V]) set(key K, it Item[V]) {
 	it.t = c.getDuration(it.d)
 
 	c.l.Lock()
@@ -24,7 +24,7 @@ func (c *Cache[K, V]) set(key K, it item[V]) {
 }
 
 func (c *Cache[K, V]) delete(key K, reason DeallocationReason) {
-	var v item[V]
+	var v Item[V]
 	c.l.Lock()
 	defer c.l.Unlock()
 
@@ -39,12 +39,30 @@ func (c *Cache[K, V]) delete(key K, reason DeallocationReason) {
 	c.deleteUnsafe(key, v, reason)
 }
 
-func (c *Cache[K, V]) deleteUnsafe(key K, v item[V], reason DeallocationReason) {
+func (c *Cache[K, V]) deleteUnsafe(key K, v Item[V], reason DeallocationReason) {
 	delete(c.m, key)
 
 	if c.o.deallocationFunc != nil {
 		c.o.deallocationFunc(key, v.v, reason)
 	}
+}
+
+func (c *Cache[K, V]) getkeys() []K {
+	c.l.RLock()
+	defer c.l.RUnlock()
+
+	keys := make([]K, len(c.m))
+	for k := range c.m {
+		keys = append(keys, k)
+	}
+
+	return keys
+}
+
+func (c *Cache[K, V]) close() {
+	c.l.Lock()
+	defer c.l.Unlock()
+	close(c.ch)
 }
 
 func (c *Cache[K, V]) getDuration(d time.Duration) time.Time {
@@ -57,4 +75,16 @@ func (c *Cache[K, V]) getDuration(d time.Duration) time.Time {
 	}
 
 	return time.Time{}
+}
+
+func (i *Item[V]) getDuration() time.Duration {
+	return i.d
+}
+
+func (i *Item[V]) getTime() time.Time {
+	return i.t
+}
+
+func (i *Item[V]) getValue() V {
+	return i.v
 }

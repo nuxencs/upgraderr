@@ -10,7 +10,7 @@ func New[K comparable, V any](options Options[K, V]) *Cache[K, V] {
 	c := Cache[K, V]{
 		o:  options,
 		ch: make(chan time.Time, 1000),
-		m:  make(map[K]item[V]),
+		m:  make(map[K]Item[V]),
 	}
 
 	if options.defaultTTL != NoTTL && options.defaultResolution == 0 {
@@ -36,12 +36,25 @@ func (c *Cache[K, V]) Get(key K) (V, bool) {
 	return it.v, ok
 }
 
+func (c *Cache[K, V]) GetItem(key K) (Item[V], bool) {
+	it, ok := c.get(key)
+	if !ok {
+		return it, ok
+	}
+
+	if !c.o.noUpdateTime && !it.t.IsZero() && c.getDuration(it.d).After(it.t) {
+		c.set(key, it)
+	}
+
+	return it, ok
+}
+
 func (c *Cache[K, V]) Set(key K, value V, duration time.Duration) bool {
 	if c.o.defaultTTL == NoTTL && duration == DefaultTTL {
 		duration = NoTTL
 	}
 
-	c.set(key, item[V]{v: value, d: duration})
+	c.set(key, Item[V]{v: value, d: duration})
 	return true
 }
 
@@ -49,22 +62,24 @@ func (c *Cache[K, V]) Delete(key K) {
 	c.delete(key, ReasonDeleted)
 }
 
-func (c *Cache[K, V]) Close() {
-	c.l.Lock()
-	defer c.l.Unlock()
-	close(c.ch)
+func (c *Cache[K, V]) GetKeys() []K {
+	return c.getkeys()
 }
 
-func (c *Cache[K, V]) GetKeys() []K {
-	c.l.RLock()
-	defer c.l.RUnlock()
+func (c *Cache[K, V]) Close() {
+	c.close()
+}
 
-	ret := make([]K, 0, len(c.m))
-	for k := range c.m {
-		ret = append(ret, k)
-	}
+func (i *Item[V]) GetDuration() time.Duration {
+	return i.getDuration()
+}
 
-	return ret
+func (i *Item[V]) GetTime() time.Time {
+	return i.getTime()
+}
+
+func (i *Item[V]) GetValue() V {
+	return i.getValue()
 }
 
 func (o Options[K, V]) SetTimerResolution(d time.Duration) Options[K, V] {

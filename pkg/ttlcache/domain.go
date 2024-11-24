@@ -15,10 +15,10 @@ type Cache[K comparable, V any] struct {
 	l  sync.RWMutex
 	o  Options[K, V]
 	ch chan time.Time
-	m  map[K]item[V]
+	m  map[K]Item[V]
 }
 
-type item[V any] struct {
+type Item[V any] struct {
 	t time.Time
 	d time.Duration
 	v V

@@ -81,7 +81,8 @@ type timeentry struct {
 var db *bolt.DB
 var clientmap = ttlcache.New[qbittorrent.Config, *qbittorrent.Client](
 	ttlcache.Options[qbittorrent.Config, *qbittorrent.Client]{}.
-		SetDefaultTTL(time.Minute * 5))
+		SetDefaultTTL(time.Minute * 5).
+		SetTimerResolution(time.Minute * 1))
 
 var torrentmap = ttlcache.New[qbittorrent.Config, *timeentry](
 	ttlcache.Options[qbittorrent.Config, *timeentry]{}.
@@ -90,7 +91,8 @@ var torrentmap = ttlcache.New[qbittorrent.Config, *timeentry](
 
 var titlemap = ttlcache.New[string, *rls.Release](
 	ttlcache.Options[string, *rls.Release]{}.
-		SetDefaultTTL(time.Minute * 15))
+		SetDefaultTTL(time.Minute * 15).
+		SetTimerResolution(time.Minute * 5))
 
 func main() {
 	initDatabase()
