@@ -388,6 +388,7 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 			if res := f(&requestrls, &child); res != nil && res.t != requestrls.t {
 				parent = *res
 				code = 202 + i
+				break
 			}
 		}
 	}
@@ -982,11 +983,13 @@ func checkReplacement(requestrls, child *Entry) *Entry {
 
 func checkAudio(requestrls, child *Entry) *Entry {
 	sm := map[string]int{
-		"FLAC":       91,
-		"DTS-HD.HRA": 90,
-		"DDPA":       89,
-		"TrueHD":     88,
-		"DTS-HD.MA":  87,
+		"FLAC":       93,
+		"DTS-X":      92,
+		"DTS-HD.HRA": 91,
+		"DDPA":       90,
+		"TrueHD":     89,
+		"DTS-HD.MA":  88,
+		"DTS-MA":     87,
 		"DTS-HD.HR":  86,
 		"Atmos":      85,
 		"DTS-HD":     84,
@@ -1076,6 +1079,7 @@ func checkChannels(requestrls, child *Entry) *Entry {
 
 func checkHDR(requestrls, child *Entry) *Entry {
 	sm := map[string]int{
+		"DoVi":   90,
 		"DV":     90,
 		"HDR10+": 89,
 		"HDR10":  88,
