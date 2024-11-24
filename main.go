@@ -169,17 +169,22 @@ func (c *upgradereq) getAllTorrents() (*timeentry, error) {
 		return torrentmap.SetItem(set, &timeentry{tc: timecache.New(timecache.Options{})}, ttlcache.DefaultTTL)
 	}
 
-	te := getOrInitialize()
-	val := te.GetValue()
-	if val.e != nil {
-		return val, nil
-	}
-
-	err := GetOrUpdate(&val.m, func() bool {
+	var te ttlcache.Item[*timeentry]
+	var val *timeentry
+	resetOrRun := func() bool {
 		te = getOrInitialize()
 		val = te.GetValue()
 		return val.e != nil
+	}
+
+	resetOrRun()
+	err := GetOrUpdate(&val.m, func() bool {
+		return resetOrRun()
 	}, func() error {
+		if resetOrRun() {
+			return nil
+		}
+
 		torrents, err := c.Client.GetTorrents(qbittorrent.TorrentFilterOptions{})
 		if err != nil {
 			return err
