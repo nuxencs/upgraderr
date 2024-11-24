@@ -46,6 +46,8 @@ import (
 	"github.com/moistari/rls"
 	"github.com/pkg/errors"
 	du "github.com/ricochet2200/go-disk-usage/du"
+	"github.com/titlerr/upgraderr/pkg/timecache"
+	"github.com/titlerr/upgraderr/pkg/ttlcache"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -70,15 +72,24 @@ type upgradereq struct {
 
 type timeentry struct {
 	e   map[string][]Entry
-	d   map[string]rls.Release
 	t   time.Time
+	tc  *timecache.Cache
 	err error
 	sync.Mutex
 }
 
 var db *bolt.DB
-var clientmap sync.Map
-var torrentmap sync.Map
+var clientmap = ttlcache.New[qbittorrent.Config, *qbittorrent.Client](
+	ttlcache.Options[qbittorrent.Config, *qbittorrent.Client]{}.
+		SetDefaultTTL(time.Minute * 5))
+
+var torrentmap = ttlcache.New[qbittorrent.Config, *timeentry](
+	ttlcache.Options[qbittorrent.Config, *timeentry]{}.
+		SetDefaultTTL(time.Second * 3))
+
+var titlemap = ttlcache.New[string, rls.Release](
+	ttlcache.Options[string, rls.Release]{}.
+		SetDefaultTTL(time.Minute * 15))
 
 func main() {
 	initDatabase()
@@ -113,7 +124,7 @@ func getClient(req *upgradereq) error {
 		Password: req.Password,
 	}
 
-	c, ok := clientmap.Load(s)
+	c, ok := clientmap.Get(s)
 	if !ok {
 		c = qbittorrent.NewClient(qbittorrent.Config{
 			Host:     req.Host,
@@ -121,14 +132,14 @@ func getClient(req *upgradereq) error {
 			Password: req.Password,
 		})
 
-		if err := c.(*qbittorrent.Client).Login(); err != nil {
+		if err := c.Login(); err != nil {
 			return err
 		}
 
-		clientmap.Store(s, c)
+		clientmap.Set(s, c, ttlcache.DefaultTTL)
 	}
 
-	req.Client = c.(*qbittorrent.Client)
+	req.Client = c
 	return nil
 }
 
@@ -136,7 +147,7 @@ func heartbeat(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Alive", 200)
 }
 
-func (c *upgradereq) getAllTorrents() timeentry {
+func (c *upgradereq) getAllTorrents() *timeentry {
 	set := qbittorrent.Config{
 		Host:     c.Host,
 		Username: c.User,
@@ -144,20 +155,22 @@ func (c *upgradereq) getAllTorrents() timeentry {
 	}
 
 	f := func() *timeentry {
-		te, ok := torrentmap.Load(set)
+		te, ok := torrentmap.Get(set)
 		if ok {
-			return te.(*timeentry)
+			return te
 		}
 
-		res := &timeentry{d: make(map[string]rls.Release)}
-		torrentmap.Store(set, res)
+		res := &timeentry{
+			tc: timecache.New(timecache.Options{})}
+
+		torrentmap.Set(set, res, ttlcache.DefaultTTL)
 		return res
 	}
 
 	res := f()
-	cur := time.Now()
+	cur := res.tc.Now()
 	if c.CacheBypass == 0 && res.t.After(cur) {
-		return *res
+		return res
 	}
 
 	res.Lock()
@@ -165,30 +178,25 @@ func (c *upgradereq) getAllTorrents() timeentry {
 
 	res = f()
 	if c.CacheBypass == 0 && res.t.After(cur) {
-		return *res
+		return res
 	}
 
 	torrents, err := c.Client.GetTorrents(qbittorrent.TorrentFilterOptions{})
 	if err != nil {
-		return timeentry{err: err}
+		return &timeentry{err: err}
 	}
 
-	nt := time.Now()
-	res = &timeentry{e: make(map[string][]Entry), t: nt.Add(nt.Sub(cur)), d: res.d}
+	nt := res.tc.Now()
+	res = &timeentry{e: make(map[string][]Entry)}
 
 	for _, t := range torrents {
-		r, ok := res.d[t.Name]
-		if !ok {
-			r = rls.ParseString(t.Name)
-			res.d[t.Name] = r
-		}
-
+		r := CacheTitle(t.Name)
 		s := getFormattedTitle(r)
 		res.e[s] = append(res.e[s], Entry{t: t, r: r})
 	}
 
-	torrentmap.Store(set, res)
-	return *res
+	torrentmap.Set(set, res, nt.Sub(cur))
+	return res
 }
 
 func (c *upgradereq) getFiles(hash string) (*qbittorrent.TorrentFiles, error) {
@@ -325,11 +333,7 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var requestrls Entry
-	if rm, ok := mp.d[req.Name]; ok {
-		requestrls.r = rm
-	} else {
-		requestrls.r = rls.ParseString(req.Name)
-	}
+	requestrls.r = CacheTitle(req.Name)
 
 	if v, ok := mp.e[getFormattedTitle(requestrls.r)]; ok {
 		code := 0
@@ -1226,14 +1230,16 @@ func handleAutobrrFilterUpdate(w http.ResponseWriter, r *http.Request) {
 	sane := regexp.MustCompile(`(\?+\?)`)
 	replace := regexp.MustCompile("([\x00-\\/\\:-@\\[-\\`\\{-\\~])")
 
-	for _, t := range mp.d {
-		singlemap[sane.ReplaceAllString(
-			replace.ReplaceAllString(
-				strings.ToValidUTF8(
-					strings.ToLower(t.Title),
+	for _, e := range mp.e {
+		for _, t := range e {
+			singlemap[sane.ReplaceAllString(
+				replace.ReplaceAllString(
+					strings.ToValidUTF8(
+						strings.ToLower(CacheTitle(t.t.Name).Title),
+						"?"),
 					"?"),
-				"?"),
-			"*")] = struct{}{}
+				"*")] = struct{}{}
+		}
 	}
 
 	submit := struct {
@@ -1249,14 +1255,13 @@ func handleAutobrrFilterUpdate(w http.ResponseWriter, r *http.Request) {
 		buf = append(buf, k)
 	}
 	singlemap = nil
-	
+
 	sort.Strings(buf)
 	for _, k := range buf {
 		submit.Shows += k + ","
 	}
 
 	submit.Shows = strings.Trim(submit.Shows, " ,")
-
 
 	body, err := json.Marshal(submit)
 	if err != nil {
@@ -1317,7 +1322,7 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 	resultMinimumCount := -1
 	var contextString string
 	var queryRls *rls.Release
-	var mp timeentry
+	var mp *timeentry
 
 	environment := []expr.Option{expr.Env(qbittorrent.Torrent{}),
 		expr.Function(
@@ -1412,11 +1417,8 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 		expr.Function(
 			"TitleParse",
 			func(params ...any) (any, error) {
-				if rm, ok := mp.d[params[0].(string)]; ok {
-					return rm, nil
-				}
-
-				return rls.ParseString(params[0].(string)), nil
+				r := CacheTitle(params[0].(string))
+				return r, nil
 			},
 			new(func(string) rls.Release),
 		),
@@ -1715,11 +1717,7 @@ func handleTorznabCrossSearch(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			r, ok := mp.d[torrent.t.Name]
-			if !ok {
-				r = rls.ParseString(torrent.t.Name)
-				mp.d[torrent.t.Name] = r
-			}
+			r := CacheTitle(torrent.t.Name)
 
 			q := strings.ToLower(r.Title)
 			y := ""
@@ -1758,7 +1756,7 @@ func handleTorznabCrossSearch(w http.ResponseWriter, r *http.Request) {
 	var wg sync.WaitGroup
 	for k, v := range processlist {
 		fmt.Printf("Searching: %q\n", v)
-		r := mp.d[v]
+		r := CacheTitle(v)
 		adult := regexadult.MatchString(v)
 		for _, indexer := range indexers.Indexer {
 			faillock.RLock()
@@ -1939,18 +1937,13 @@ func handleTorznabCrossSearch(w http.ResponseWriter, r *http.Request) {
 			return fmt.Errorf("missing torrents enclosures bucket")
 		}
 
-		drm := mp.d
 		titb.ForEachBucket(func(k []byte) error {
 			ibc := titb.Bucket(k)
 			ebc := eb.Bucket(k)
 			tbc := torb.Bucket(k)
 
 			ibc.ForEach(func(kc, v []byte) error {
-				r, ok := drm[string(kc)]
-				if !ok {
-					r = rls.ParseString(string(kc))
-					drm[string(kc)] = r
-				}
+				r := CacheTitle(string(kc))
 
 				ent, ok := mp.e[getFormattedTitle(r)]
 				if !ok {
@@ -1991,4 +1984,14 @@ func handleTorznabCrossSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Error(w, fmt.Sprintf("Processed: %d\n", len(processlist)), 200)
+}
+
+func CacheTitle(title string) rls.Release {
+	r, ok := titlemap.Get(title)
+	if !ok {
+		r = rls.ParseString(title)
+		titlemap.Set(title, r, ttlcache.DefaultTTL)
+	}
+
+	return r
 }

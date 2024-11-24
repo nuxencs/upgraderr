@@ -1,6 +1,6 @@
 go 1.21
 
-module upgraderr
+module github.com/titlerr/upgraderr
 
 require (
 	github.com/antonmedv/expr v1.15.5
