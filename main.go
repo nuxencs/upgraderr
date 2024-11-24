@@ -340,7 +340,7 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 		var parent Entry
 		for _, childtor := range v {
 			child := Entry{t: childtor, r: CacheTitle(childtor.Name)}
-			if rls.Compare(requestrls.r, child.r) == 0 {
+			if rls.Compare(*requestrls.r, *child.r) == 0 {
 				if child.t.Progress < parent.t.Progress {
 					code = 240 + int(parent.t.Progress*10.0)
 					continue
@@ -449,7 +449,7 @@ func handleClean(w http.ResponseWriter, r *http.Request) {
 				parent = child
 			}
 
-			if rls.Compare(parent.r, child.r) == 0 {
+			if rls.Compare(*parent.r, *child.r) == 0 {
 				parentMap[child.t.Name]++
 				continue
 			}
@@ -572,7 +572,7 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	requestrls := Entry{r: rls.ParseString(req.Name)}
+	requestrls := Entry{r: CacheTitle(req.Name)}
 	v, ok := mp.e[getFormattedTitle(requestrls.r)]
 	if !ok {
 		http.Error(w, fmt.Sprintf("Not a cross-submission: %q\n", req.Name), 420)
@@ -602,7 +602,7 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 
 	for _, childtor := range v {
 		child := Entry{t: childtor, r: CacheTitle(childtor.Name)}
-		if rls.Compare(requestrls.r, child.r) != 0 || child.t.Progress != 1.0 {
+		if rls.Compare(*requestrls.r, *child.r) != 0 || child.t.Progress != 1.0 {
 			continue
 		}
 
@@ -917,7 +917,7 @@ func checkExtension(requestrls, child *Entry) *Entry {
 		"divx": 84,
 	}
 
-	return compareResults(requestrls, child, func(e rls.Release) int {
+	return compareResults(requestrls, child, func(e *rls.Release) int {
 		i := sm[e.Ext]
 
 		if i == 0 {
@@ -951,7 +951,7 @@ func checkLanguage(requestrls, child *Entry) *Entry {
 		"RUSSiAN":    1,
 	}
 
-	return compareResults(requestrls, child, func(e rls.Release) int {
+	return compareResults(requestrls, child, func(e *rls.Release) int {
 		i := 0
 		for _, v := range e.Language {
 			if i < sm[v] {
@@ -987,7 +987,7 @@ func checkReplacement(requestrls, child *Entry) *Entry {
 		"INTERNAL":   8,
 	}
 
-	return compareResults(requestrls, child, func(e rls.Release) int {
+	return compareResults(requestrls, child, func(e *rls.Release) int {
 		i := 0
 		for _, v := range e.Other {
 			if i < sm[v] {
@@ -1021,7 +1021,7 @@ func checkAudio(requestrls, child *Entry) *Entry {
 		"DUAL.AUDIO": 70,
 	}
 
-	return compareResults(requestrls, child, func(e rls.Release) int {
+	return compareResults(requestrls, child, func(e *rls.Release) int {
 		i := 0
 		for _, v := range e.Audio {
 			if i < sm[v] {
@@ -1066,7 +1066,7 @@ func checkSource(requestrls, child *Entry) *Entry {
 		"CAM":        74,
 	}
 
-	return compareResults(requestrls, child, func(e rls.Release) int {
+	return compareResults(requestrls, child, func(e *rls.Release) int {
 		i := sm[e.Source]
 
 		if i == 0 {
@@ -1086,7 +1086,7 @@ func checkChannels(requestrls, child *Entry) *Entry {
 		return nil
 	}
 
-	return compareResults(requestrls, child, func(e rls.Release) int {
+	return compareResults(requestrls, child, func(e *rls.Release) int {
 		i, _ := strconv.ParseFloat(e.Channels, 8)
 
 		if i == 0.0 {
@@ -1108,7 +1108,7 @@ func checkHDR(requestrls, child *Entry) *Entry {
 		"SDR":    84,
 	}
 
-	return compareResults(requestrls, child, func(e rls.Release) int {
+	return compareResults(requestrls, child, func(e *rls.Release) int {
 		i := 0
 		for _, v := range e.HDR {
 			if i < sm[v] {
@@ -1133,7 +1133,7 @@ func checkResolution(requestrls, child *Entry) *Entry {
 		return nil
 	}
 
-	return compareResults(requestrls, child, func(e rls.Release) int {
+	return compareResults(requestrls, child, func(e *rls.Release) int {
 		i, _, _ := Atoi(e.Resolution)
 		if i == 0 {
 			i = 480
@@ -1143,7 +1143,7 @@ func checkResolution(requestrls, child *Entry) *Entry {
 	})
 }
 
-func compareResults(requestrls, child *Entry, f func(rls.Release) int) *Entry {
+func compareResults(requestrls, child *Entry, f func(*rls.Release) int) *Entry {
 	requestrlsv := f(requestrls.r)
 	childv := f(child.r)
 
