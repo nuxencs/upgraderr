@@ -178,7 +178,7 @@ func (c *upgradereq) getAllTorrents() *timeentry {
 
 	res = f()
 	val = res.GetValue()
-	if c.CacheBypass == 0 && res.GetTime().After(cur) {
+	if c.CacheBypass == 0 && len(val.e) != 0 && res.GetTime().After(cur) {
 		return val
 	}
 
