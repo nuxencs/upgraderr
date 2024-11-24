@@ -127,11 +127,7 @@ func getClient(req *upgradereq) error {
 
 	c, ok := clientmap.Get(s)
 	if !ok {
-		c = qbittorrent.NewClient(qbittorrent.Config{
-			Host:     req.Host,
-			Username: req.User,
-			Password: req.Password,
-		})
+		c = qbittorrent.NewClient(s)
 
 		if err := c.Login(); err != nil {
 			return err
@@ -1229,7 +1225,7 @@ func handleAutobrrFilterUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	singlemap := make(map[string]struct{})
+	singlemap := make(map[string]struct{}, len(mp.e))
 	sane := regexp.MustCompile(`(\?+\?)`)
 	replace := regexp.MustCompile("([\x00-\\/\\:-@\\[-\\`\\{-\\~])")
 
@@ -1245,10 +1241,6 @@ func handleAutobrrFilterUpdate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	submit := struct {
-		Shows string
-	}{}
-
 	buf := make([]string, 0, len(singlemap))
 	for k := range singlemap {
 		if len(k) < 1 {
@@ -1260,19 +1252,22 @@ func handleAutobrrFilterUpdate(w http.ResponseWriter, r *http.Request) {
 	singlemap = nil
 
 	sort.Strings(buf)
-	for _, k := range buf {
-		submit.Shows += k + ","
+	submit := struct {
+		Shows string
+	}{
+		Shows: strings.Trim(strings.Join(buf, ","), " ,"),
 	}
 
-	submit.Shows = strings.Trim(submit.Shows, " ,")
-
-	body, err := json.Marshal(submit)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Unable to marshall qbittorrent data: %q\n", err), 465)
-		return
+	body := &bytes.Buffer{}
+	{
+		enc := json.NewEncoder(body)
+		if err := enc.Encode(submit); err != nil {
+			http.Error(w, fmt.Sprintf("Unable to marshall qbittorrent data: %q\n", err), 465)
+			return
+		}
 	}
 
-	newreq, err := http.NewRequestWithContext(context.Background(), http.MethodPatch, req.AutobrrHost+"/api/filters/"+fmt.Sprintf("%d", req.FilterID), bytes.NewBuffer(body))
+	newreq, err := http.NewRequestWithContext(context.Background(), http.MethodPatch, req.AutobrrHost+"/api/filters/"+fmt.Sprintf("%d", req.FilterID), body)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Unable to create new http request: %q\n", err), 463)
 		return
