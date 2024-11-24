@@ -442,7 +442,7 @@ func handleClean(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t := time.Now().Unix()
+	t := globalTime.Now().Unix()
 	hashes := make([]string, 0)
 	for _, v := range mp.e {
 		var parent Entry
@@ -1207,6 +1207,9 @@ type autobrrFilterUpdate struct {
 	upgradereq
 }
 
+var saneFilter = regexp.MustCompile(`(\?+\?)`)
+var replaceFilter = regexp.MustCompile("([\x00-\\/\\:-@\\[-\\`\\{-\\~])")
+
 func handleAutobrrFilterUpdate(w http.ResponseWriter, r *http.Request) {
 	var req autobrrFilterUpdate
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -1238,13 +1241,11 @@ func handleAutobrrFilterUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	singlemap := make(map[string]struct{}, len(mp.e))
-	sane := regexp.MustCompile(`(\?+\?)`)
-	replace := regexp.MustCompile("([\x00-\\/\\:-@\\[-\\`\\{-\\~])")
 
 	for _, e := range mp.e {
 		for _, t := range e {
-			singlemap[sane.ReplaceAllString(
-				replace.ReplaceAllString(
+			singlemap[saneFilter.ReplaceAllString(
+				replaceFilter.ReplaceAllString(
 					strings.ToValidUTF8(
 						strings.ToLower(CacheTitle(t.Name).Title),
 						"?"),
@@ -1340,7 +1341,7 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 		expr.Function(
 			"Now",
 			func(params ...any) (any, error) {
-				return time.Now().Unix(), nil
+				return globalTime.Now().Unix(), nil
 			},
 			new(func() int64),
 		),
@@ -1722,7 +1723,7 @@ func handleTorznabCrossSearch(w http.ResponseWriter, r *http.Request) {
 
 	processlist := make(map[string]string)
 	regexseason := regexp.MustCompile("(S\\d+)")
-	nt := time.Now().Unix()
+	nt := globalTime.Now().Unix()
 	for _, e := range mp.e {
 		for _, torrent := range e {
 			if req.AgeLimit != 0 && nt-int64(req.AgeLimit) > torrent.CompletionOn {
