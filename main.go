@@ -74,7 +74,7 @@ type timeentry struct {
 	e   map[string][]qbittorrent.Torrent
 	tc  *timecache.Cache
 	err error
-	sync.Mutex
+	m   sync.RWMutex
 }
 
 var db *bolt.DB
@@ -93,6 +93,13 @@ var titlemap = ttlcache.New[string, *rls.Release](
 	ttlcache.Options[string, *rls.Release]{}.
 		SetDefaultTTL(time.Minute * 15).
 		SetTimerResolution(time.Minute * 5))
+
+var formattedmap = ttlcache.New[string, string](
+	ttlcache.Options[string, string]{}.
+		SetDefaultTTL(time.Minute * 15).
+		SetTimerResolution(time.Minute * 5))
+
+var globalTime = timecache.New(timecache.Options{})
 
 func main() {
 	initDatabase()
@@ -153,49 +160,42 @@ func (c *upgradereq) getAllTorrents() *timeentry {
 		Password: c.Password,
 	}
 
-	f := func() ttlcache.Item[*timeentry] {
-		te, ok := torrentmap.GetItem(set)
-		if ok {
-			return te
+	getOrInitialize := func() ttlcache.Item[*timeentry] {
+		if it, ok := torrentmap.GetItem(set); ok {
+			if c.CacheBypass == 0 || (c.CacheBypass == 1 && len(it.GetValue().e) == 0) {
+				return it
+			}
 		}
 
-		res := &timeentry{
-			tc: timecache.New(timecache.Options{}),
-		}
-
-		return torrentmap.SetItem(set, res, ttlcache.DefaultTTL)
+		return torrentmap.SetItem(set, &timeentry{tc: timecache.New(timecache.Options{})}, ttlcache.DefaultTTL)
 	}
 
-	res := f()
-	val := res.GetValue()
-	cur := val.tc.Now()
-	if c.CacheBypass == 0 && len(val.e) != 0 && res.GetTime().After(cur) {
+	te := getOrInitialize()
+	val := te.GetValue()
+	if val.e != nil {
 		return val
 	}
 
-	val.Lock()
-	defer val.Unlock()
+	GetOrUpdate(&val.m, func() bool {
+		te = getOrInitialize()
+		val = te.GetValue()
+		return val.e != nil
+	}, func() {
+		torrents, err := c.Client.GetTorrents(qbittorrent.TorrentFilterOptions{})
+		if err != nil {
+			return
+		}
 
-	res = f()
-	val = res.GetValue()
-	if c.CacheBypass == 0 && len(val.e) != 0 && res.GetTime().After(cur) {
-		return val
-	}
+		val.e = make(map[string][]qbittorrent.Torrent)
 
-	torrents, err := c.Client.GetTorrents(qbittorrent.TorrentFilterOptions{})
-	if err != nil {
-		return &timeentry{err: err, tc: timecache.New(timecache.Options{})}
-	}
+		for _, t := range torrents {
+			s := CacheFormatted(t.Name)
+			val.e[s] = append(val.e[s], t)
+		}
 
-	nt := val.tc.Now()
-	val.e = make(map[string][]qbittorrent.Torrent)
+		torrentmap.Set(set, val, val.tc.Now().Sub(te.GetTime()))
+	})
 
-	for _, t := range torrents {
-		s := getFormattedTitle(CacheTitle(t.Name))
-		val.e[s] = append(val.e[s], t)
-	}
-
-	torrentmap.Set(set, val, nt.Sub(cur))
 	return val
 }
 
@@ -335,7 +335,7 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 	var requestrls Entry
 	requestrls.r = CacheTitle(req.Name)
 
-	if v, ok := mp.e[getFormattedTitle(requestrls.r)]; ok {
+	if v, ok := mp.e[CacheFormatted(req.Name)]; ok {
 		code := 0
 		var parent Entry
 		for _, childtor := range v {
@@ -573,7 +573,7 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 	}
 
 	requestrls := Entry{r: CacheTitle(req.Name)}
-	v, ok := mp.e[getFormattedTitle(requestrls.r)]
+	v, ok := mp.e[CacheFormatted(req.Name)]
 	if !ok {
 		http.Error(w, fmt.Sprintf("Not a cross-submission: %q\n", req.Name), 420)
 		return
@@ -893,7 +893,11 @@ func handleUnregistered(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, fmt.Sprintf("Unregistered torrents deleted: %d", count), 200)
 }
 
-func getFormattedTitle(r *rls.Release) string {
+func getFormattedTitle(title string) string {
+	return getReleaseTitle(CacheTitle(title))
+}
+
+func getReleaseTitle(r *rls.Release) string {
 	s := fmt.Sprintf("%s%s%s%04d%02d%02d%02d%03d", rls.MustNormalize(r.Artist), rls.MustNormalize(r.Title), rls.MustNormalize(r.Subtitle), r.Year, r.Month, r.Day, r.Series, r.Episode)
 	for _, a := range r.Cut {
 		s += rls.MustNormalize(a)
@@ -1947,13 +1951,12 @@ func handleTorznabCrossSearch(w http.ResponseWriter, r *http.Request) {
 			tbc := torb.Bucket(k)
 
 			ibc.ForEach(func(kc, v []byte) error {
-				r := CacheTitle(string(kc))
-
-				ent, ok := mp.e[getFormattedTitle(r)]
+				ent, ok := mp.e[CacheFormatted(string(kc))]
 				if !ok {
 					return nil
 				}
 
+				r := CacheTitle(string(kc))
 				for _, e := range ent {
 					if rls.Compare(*r, *CacheTitle(e.Name)) != 0 {
 						continue
@@ -1990,6 +1993,16 @@ func handleTorznabCrossSearch(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, fmt.Sprintf("Processed: %d\n", len(processlist)), 200)
 }
 
+func CacheFormatted(title string) string {
+	r, ok := formattedmap.Get(title)
+	if !ok {
+		r = getFormattedTitle(title)
+		formattedmap.Set(title, r, ttlcache.DefaultTTL)
+	}
+
+	return r
+}
+
 func CacheTitle(title string) *rls.Release {
 	r, ok := titlemap.Get(title)
 	if !ok {
@@ -2000,4 +2013,16 @@ func CacheTitle(title string) *rls.Release {
 	}
 
 	return r
+}
+
+func GetOrUpdate(m *sync.RWMutex, read func() bool, update func()) {
+	m.RLock()
+	if read() {
+		m.RUnlock()
+		return
+	}
+
+	m.Lock()
+	defer m.Unlock()
+	update()
 }
