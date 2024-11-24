@@ -983,7 +983,8 @@ func checkReplacement(requestrls, child *Entry) *Entry {
 
 func checkAudio(requestrls, child *Entry) *Entry {
 	sm := map[string]int{
-		"FLAC":       93,
+		"FLAC":       94,
+		"LPCM":       93,
 		"DTS-X":      92,
 		"DTS-HD.HRA": 91,
 		"DDPA":       90,
