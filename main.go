@@ -184,11 +184,11 @@ func (c *upgradereq) getAllTorrents() *timeentry {
 
 	torrents, err := c.Client.GetTorrents(qbittorrent.TorrentFilterOptions{})
 	if err != nil {
-		return &timeentry{err: err}
+		return &timeentry{err: err, tc: timecache.New(timecache.Options{})}
 	}
 
 	nt := res.tc.Now()
-	res = &timeentry{e: make(map[string][]qbittorrent.Torrent)}
+	res = &timeentry{e: make(map[string][]qbittorrent.Torrent), tc: timecache.New(timecache.Options{})}
 
 	for _, t := range torrents {
 		s := getFormattedTitle(CacheTitle(t.Name))
