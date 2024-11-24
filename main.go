@@ -1261,6 +1261,8 @@ func handleAutobrrFilterUpdate(w http.ResponseWriter, r *http.Request) {
 	body := &bytes.Buffer{}
 	{
 		enc := json.NewEncoder(body)
+		enc.SetEscapeHTML(false)
+
 		if err := enc.Encode(submit); err != nil {
 			http.Error(w, fmt.Sprintf("Unable to marshall qbittorrent data: %q\n", err), 465)
 			return
