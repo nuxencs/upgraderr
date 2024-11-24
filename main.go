@@ -36,6 +36,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/autobrr/autobrr/pkg/sharedhttp"
 	"github.com/autobrr/go-qbittorrent"
 	"github.com/avast/retry-go"
 	"github.com/expr-lang/expr"
@@ -1258,9 +1259,7 @@ func handleAutobrrFilterUpdate(w http.ResponseWriter, r *http.Request) {
 
 	newreq.Header.Add("X-API-Token", req.APIKey)
 
-	client := http.Client{
-		Timeout: 90 * time.Second,
-	}
+	client := sharedhttp.Client
 
 	res, err := client.Do(newreq)
 	if err != nil {

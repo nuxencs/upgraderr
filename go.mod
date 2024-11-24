@@ -1,10 +1,11 @@
-go 1.21
+go 1.23.2
 
 module github.com/titlerr/upgraderr
 
 require (
 	github.com/antonmedv/expr v1.15.5
-	github.com/autobrr/go-qbittorrent v1.9.1-0.20240729004640-b2485540edef
+	github.com/autobrr/autobrr v1.50.0
+	github.com/autobrr/go-qbittorrent v1.10.0
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/expr-lang/expr v1.16.9
 	github.com/go-chi/chi/v5 v5.1.0
@@ -16,8 +17,8 @@ require (
 )
 
 require (
-	golang.org/x/net v0.27.0 // indirect
-	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/sys v0.22.0 // indirect
-	golang.org/x/text v0.16.0 // indirect
+	golang.org/x/net v0.30.0 // indirect
+	golang.org/x/sync v0.8.0 // indirect
+	golang.org/x/sys v0.26.0 // indirect
+	golang.org/x/text v0.19.0 // indirect
 )
