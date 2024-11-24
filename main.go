@@ -197,7 +197,7 @@ func (c *upgradereq) getAllTorrents() (*timeentry, error) {
 			val.e[s] = append(val.e[s], t)
 		}
 
-		torrentmap.Set(set, val, val.tc.Now().Sub(te.GetTime()))
+		torrentmap.Set(set, val, val.tc.Now().Sub(te.GetTime().Add(-te.GetDuration())))
 		return nil
 	})
 
