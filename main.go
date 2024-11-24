@@ -178,11 +178,12 @@ func (c *upgradereq) getAllTorrents() (*timeentry, error) {
 
 	resetOrRun()
 	err := GetOrUpdate(func() *sync.RWMutex {
+		resetOrRun()
 		return &val.m
 	}, func() bool {
-		return resetOrRun()
+		return val.e != nil
 	}, func() error {
-		if resetOrRun() {
+		if val.e != nil {
 			return nil
 		}
 
