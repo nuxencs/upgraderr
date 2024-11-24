@@ -15,7 +15,7 @@ func (c *Cache[K, V]) get(key K) (Item[V], bool) {
 }
 
 func (c *Cache[K, V]) set(key K, it Item[V]) Item[V] {
-	it.t = c.getDuration(it.d)
+	it.d, it.t = c.getDuration(it.d)
 
 	c.l.Lock()
 	defer c.l.Unlock()
@@ -66,16 +66,16 @@ func (c *Cache[K, V]) close() {
 	close(c.ch)
 }
 
-func (c *Cache[K, V]) getDuration(d time.Duration) time.Time {
+func (c *Cache[K, V]) getDuration(d time.Duration) (time.Duration, time.Time) {
 	switch d {
 	case NoTTL:
 	case DefaultTTL:
-		return c.tc.Now().Add(c.o.defaultTTL)
+		return c.o.defaultTTL, c.tc.Now().Add(c.o.defaultTTL)
 	default:
-		return c.tc.Now().Add(d)
+		return d, c.tc.Now().Add(d)
 	}
 
-	return time.Time{}
+	return NoTTL, time.Time{}
 }
 
 func (i *Item[V]) getDuration() time.Duration {

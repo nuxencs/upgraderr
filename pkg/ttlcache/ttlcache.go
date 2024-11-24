@@ -24,16 +24,12 @@ func New[K comparable, V any](options Options[K, V]) *Cache[K, V] {
 }
 
 func (c *Cache[K, V]) Get(key K) (V, bool) {
-	it, ok := c.get(key)
+	it, ok := c.GetItem(key)
 	if !ok {
 		return *new(V), ok
 	}
 
-	if !c.o.noUpdateTime && !it.t.IsZero() && c.getDuration(it.d).After(it.t) {
-		c.set(key, it)
-	}
-
-	return it.v, ok
+	return it.GetValue(), ok
 }
 
 func (c *Cache[K, V]) GetItem(key K) (Item[V], bool) {
@@ -42,8 +38,10 @@ func (c *Cache[K, V]) GetItem(key K) (Item[V], bool) {
 		return it, ok
 	}
 
-	if !c.o.noUpdateTime && !it.t.IsZero() && c.getDuration(it.d).After(it.t) {
-		c.set(key, it)
+	if !c.o.noUpdateTime && !it.t.IsZero() {
+		if _, t := c.getDuration(it.d); t.After(it.t) {
+			c.set(key, it)
+		}
 	}
 
 	return it, ok
