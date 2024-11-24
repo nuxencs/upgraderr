@@ -53,7 +53,7 @@ import (
 
 type Entry struct {
 	t qbittorrent.Torrent
-	r rls.Release
+	r *rls.Release
 }
 
 type upgradereq struct {
@@ -71,7 +71,7 @@ type upgradereq struct {
 }
 
 type timeentry struct {
-	e   map[string][]Entry
+	e   map[string][]qbittorrent.Torrent
 	t   time.Time
 	tc  *timecache.Cache
 	err error
@@ -88,8 +88,8 @@ var torrentmap = ttlcache.New[qbittorrent.Config, *timeentry](
 		SetDefaultTTL(time.Second * 3).
 		DisableUpdateTime(true))
 
-var titlemap = ttlcache.New[string, rls.Release](
-	ttlcache.Options[string, rls.Release]{}.
+var titlemap = ttlcache.New[string, *rls.Release](
+	ttlcache.Options[string, *rls.Release]{}.
 		SetDefaultTTL(time.Minute * 15))
 
 func main() {
@@ -188,12 +188,11 @@ func (c *upgradereq) getAllTorrents() *timeentry {
 	}
 
 	nt := res.tc.Now()
-	res = &timeentry{e: make(map[string][]Entry)}
+	res = &timeentry{e: make(map[string][]qbittorrent.Torrent)}
 
 	for _, t := range torrents {
-		r := CacheTitle(t.Name)
-		s := getFormattedTitle(r)
-		res.e[s] = append(res.e[s], Entry{t: t, r: r})
+		s := getFormattedTitle(CacheTitle(t.Name))
+		res.e[s] = append(res.e[s], t)
 	}
 
 	torrentmap.Set(set, res, nt.Sub(cur))
@@ -339,7 +338,8 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 	if v, ok := mp.e[getFormattedTitle(requestrls.r)]; ok {
 		code := 0
 		var parent Entry
-		for _, child := range v {
+		for _, childtor := range v {
+			child := Entry{t: childtor, r: CacheTitle(childtor.Name)}
 			if rls.Compare(requestrls.r, child.r) == 0 {
 				if child.t.Progress < parent.t.Progress {
 					code = 240 + int(parent.t.Progress*10.0)
@@ -443,7 +443,8 @@ func handleClean(w http.ResponseWriter, r *http.Request) {
 	for _, v := range mp.e {
 		var parent Entry
 		parentMap := make(map[string]int)
-		for _, child := range v {
+		for _, childtor := range v {
+			child := Entry{t: childtor, r: CacheTitle(childtor.Name)}
 			if len(parent.t.Hash) == 0 {
 				parent = child
 			}
@@ -497,24 +498,24 @@ func handleClean(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("Parent: %q\n", parentName)
 		hashMap := make(map[string]struct{})
 		for _, child := range v {
-			if child.t.Name == parentName {
+			if child.Name == parentName {
 				continue
 			}
 
 			bContinue := false
 			childHashes := make([]string, 0)
 			for _, subChild := range v {
-				if rls.Compare(subChild.r, child.r) != 0 {
+				if rls.Compare(*CacheTitle(subChild.Name), *CacheTitle(child.Name)) != 0 {
 					continue
 				}
 
-				if subChild.t.CompletionOn == 0 || t-int64(subChild.t.CompletionOn) < 1209600 {
+				if subChild.CompletionOn == 0 || t-int64(subChild.CompletionOn) < 1209600 {
 					bContinue = true
 					break
 				}
 
-				fmt.Printf("Removing: %q\n", subChild.t.Name)
-				childHashes = append(childHashes, subChild.t.Hash)
+				fmt.Printf("Removing: %q\n", subChild.Name)
+				childHashes = append(childHashes, subChild.Hash)
 			}
 
 			if bContinue {
@@ -599,7 +600,8 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	for _, child := range v {
+	for _, childtor := range v {
+		child := Entry{t: childtor, r: CacheTitle(childtor.Name)}
 		if rls.Compare(requestrls.r, child.r) != 0 || child.t.Progress != 1.0 {
 			continue
 		}
@@ -853,7 +855,7 @@ func handleUnregistered(w http.ResponseWriter, r *http.Request) {
 	count := 0
 	for _, set := range mp.e {
 		for _, t := range set {
-			req.Hash = t.t.Hash
+			req.Hash = t.Hash
 			if len(req.Hash) == 0 {
 				continue
 			}
@@ -891,7 +893,7 @@ func handleUnregistered(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, fmt.Sprintf("Unregistered torrents deleted: %d", count), 200)
 }
 
-func getFormattedTitle(r rls.Release) string {
+func getFormattedTitle(r *rls.Release) string {
 	s := fmt.Sprintf("%s%s%s%04d%02d%02d%02d%03d", rls.MustNormalize(r.Artist), rls.MustNormalize(r.Title), rls.MustNormalize(r.Subtitle), r.Year, r.Month, r.Day, r.Series, r.Episode)
 	for _, a := range r.Cut {
 		s += rls.MustNormalize(a)
@@ -1236,7 +1238,7 @@ func handleAutobrrFilterUpdate(w http.ResponseWriter, r *http.Request) {
 			singlemap[sane.ReplaceAllString(
 				replace.ReplaceAllString(
 					strings.ToValidUTF8(
-						strings.ToLower(CacheTitle(t.t.Name).Title),
+						strings.ToLower(CacheTitle(t.Name).Title),
 						"?"),
 					"?"),
 				"*")] = struct{}{}
@@ -1476,8 +1478,8 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 		priority := int64(-int64(^uint64(0)>>1) - 1)
 		for _, e := range te {
 			bCrossAware = true
-			queryRls = &e.r
-			res, err := expr.Run(queryp, e.t)
+			queryRls = CacheTitle(e.Name)
+			res, err := expr.Run(queryp, e)
 			if err != nil {
 				fmt.Printf("Query Error: %q\n", err)
 				filterhash = nil
@@ -1496,7 +1498,7 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 					priority = int64(-int64(^uint64(0)>>1) - 1)
 				}
 
-				sortprio, err := expr.Run(sortp, e.t)
+				sortprio, err := expr.Run(sortp, e)
 				if err != nil {
 					fmt.Printf("Sort Error: %q\n", err)
 					filterhash = nil
@@ -1509,11 +1511,11 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if bCrossAware {
-				filterhash = append(filterhash, e.t.Hash)
+				filterhash = append(filterhash, e.Hash)
 			} else if _, ok := hashmap[priority]; ok {
-				hashmap[priority] = append(hashmap[priority], e.t.Hash)
+				hashmap[priority] = append(hashmap[priority], e.Hash)
 			} else {
-				hashmap[priority] = []string{e.t.Hash}
+				hashmap[priority] = []string{e.Hash}
 			}
 		}
 
@@ -1714,11 +1716,11 @@ func handleTorznabCrossSearch(w http.ResponseWriter, r *http.Request) {
 	nt := time.Now().Unix()
 	for _, e := range mp.e {
 		for _, torrent := range e {
-			if req.AgeLimit != 0 && nt-int64(req.AgeLimit) > torrent.t.CompletionOn {
+			if req.AgeLimit != 0 && nt-int64(req.AgeLimit) > torrent.CompletionOn {
 				continue
 			}
 
-			r := CacheTitle(torrent.t.Name)
+			r := CacheTitle(torrent.Name)
 
 			q := strings.ToLower(r.Title)
 			y := ""
@@ -1728,12 +1730,12 @@ func handleTorznabCrossSearch(w http.ResponseWriter, r *http.Request) {
 
 			s := ""
 			if r.Series != 0 || r.Episode != 0 {
-				if regexseason.MatchString(torrent.t.Name) {
+				if regexseason.MatchString(torrent.Name) {
 					s = fmt.Sprintf("S%02d", r.Series)
 					if r.Episode != 0 {
 						s += fmt.Sprintf("E%02d", r.Episode)
 					}
-				} else if strings.Contains(strings.ToLower(torrent.t.Name), "season") {
+				} else if strings.Contains(strings.ToLower(torrent.Name), "season") {
 					s = fmt.Sprintf("season %d", r.Series)
 				}
 			} else if r.Month != 0 {
@@ -1747,7 +1749,7 @@ func handleTorznabCrossSearch(w http.ResponseWriter, r *http.Request) {
 				q += " " + s
 			}
 
-			processlist[q] = torrent.t.Name
+			processlist[q] = torrent.Name
 		}
 	}
 
@@ -1952,7 +1954,7 @@ func handleTorznabCrossSearch(w http.ResponseWriter, r *http.Request) {
 				}
 
 				for _, e := range ent {
-					if rls.Compare(r, e.r) != 0 {
+					if rls.Compare(*r, *CacheTitle(e.Name)) != 0 {
 						continue
 					}
 
@@ -1987,7 +1989,7 @@ func handleTorznabCrossSearch(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, fmt.Sprintf("Processed: %d\n", len(processlist)), 200)
 }
 
-func CacheTitle(title string) rls.Release {
+func CacheTitle(title string) *rls.Release {
 	r, ok := titlemap.Get(title)
 	if !ok {
 		r = rls.ParseString(title)
