@@ -71,10 +71,9 @@ type upgradereq struct {
 }
 
 type timeentry struct {
-	e   map[string][]qbittorrent.Torrent
-	tc  *timecache.Cache
-	err error
-	m   sync.RWMutex
+	e  map[string][]qbittorrent.Torrent
+	tc *timecache.Cache
+	m  sync.RWMutex
 }
 
 var db *bolt.DB
@@ -153,7 +152,7 @@ func heartbeat(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Alive", 200)
 }
 
-func (c *upgradereq) getAllTorrents() *timeentry {
+func (c *upgradereq) getAllTorrents() (*timeentry, error) {
 	set := qbittorrent.Config{
 		Host:     c.Host,
 		Username: c.User,
@@ -173,17 +172,17 @@ func (c *upgradereq) getAllTorrents() *timeentry {
 	te := getOrInitialize()
 	val := te.GetValue()
 	if val.e != nil {
-		return val
+		return val, nil
 	}
 
-	GetOrUpdate(&val.m, func() bool {
+	err := GetOrUpdate(&val.m, func() bool {
 		te = getOrInitialize()
 		val = te.GetValue()
 		return val.e != nil
-	}, func() {
+	}, func() error {
 		torrents, err := c.Client.GetTorrents(qbittorrent.TorrentFilterOptions{})
 		if err != nil {
-			return
+			return err
 		}
 
 		val.e = make(map[string][]qbittorrent.Torrent)
@@ -194,9 +193,10 @@ func (c *upgradereq) getAllTorrents() *timeentry {
 		}
 
 		torrentmap.Set(set, val, val.tc.Now().Sub(te.GetTime()))
+		return nil
 	})
 
-	return val
+	return val, err
 }
 
 func (c *upgradereq) getFiles(hash string) (*qbittorrent.TorrentFiles, error) {
@@ -326,9 +326,9 @@ func handleUpgrade(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mp := req.getAllTorrents()
-	if mp.err != nil {
-		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", mp.err), 468)
+	mp, err := req.getAllTorrents()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", err), 468)
 		return
 	}
 
@@ -432,9 +432,9 @@ func handleClean(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mp := req.getAllTorrents()
-	if mp.err != nil {
-		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", mp.err), 468)
+	mp, err := req.getAllTorrents()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", err), 468)
 		return
 	}
 
@@ -566,9 +566,9 @@ func handleCross(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mp := req.getAllTorrents()
-	if mp.err != nil {
-		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", mp.err), 497)
+	mp, err := req.getAllTorrents()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", err), 497)
 		return
 	}
 
@@ -824,9 +824,9 @@ func handleUnregistered(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mp := req.getAllTorrents()
-	if mp.err != nil {
-		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", mp.err), 468)
+	mp, err := req.getAllTorrents()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", err), 468)
 		return
 	}
 
@@ -1227,9 +1227,9 @@ func handleAutobrrFilterUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	req.Client = tmp.Client
-	mp := req.getAllTorrents()
-	if mp.err != nil {
-		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", mp.err), 468)
+	mp, err := req.getAllTorrents()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", err), 468)
 		return
 	}
 
@@ -1471,9 +1471,9 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 
 	req.Client = tmp.Client
 
-	mp = req.getAllTorrents()
-	if mp.err != nil {
-		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", mp.err), 468)
+	mp, err = req.getAllTorrents()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", err), 468)
 		return
 	}
 
@@ -1710,9 +1710,9 @@ func handleTorznabCrossSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	req.Client = tmp.Client
-	mp := req.getAllTorrents()
-	if mp.err != nil {
-		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", mp.err), 468)
+	mp, err := req.getAllTorrents()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Unable to get result: %q\n", err), 468)
 		return
 	}
 
@@ -2015,14 +2015,14 @@ func CacheTitle(title string) *rls.Release {
 	return r
 }
 
-func GetOrUpdate(m *sync.RWMutex, read func() bool, update func()) {
+func GetOrUpdate(m *sync.RWMutex, read func() bool, update func() error) error {
 	m.RLock()
 	if read() {
 		m.RUnlock()
-		return
+		return nil
 	}
 
 	m.Lock()
 	defer m.Unlock()
-	update()
+	return update()
 }
