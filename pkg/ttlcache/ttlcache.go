@@ -56,12 +56,16 @@ func (c *Cache[K, V]) GetOrSet(key K, value V, duration time.Duration) (V, bool)
 	return it.GetValue(), ok
 }
 
-func (c *Cache[K, V]) GetOrSetItem(key K, value V, duration time.Duration) (Item[V], bool) {
+func (c *Cache[K, V]) fixupDuration(duration time.Duration) time.Duration {
 	if c.o.defaultTTL == NoTTL && duration == DefaultTTL {
-		duration = NoTTL
+		return NoTTL
 	}
 
-	it, ok := c.getOrSet(key, Item[V]{v: value, d: duration})
+	return duration
+}
+
+func (c *Cache[K, V]) GetOrSetItem(key K, value V, duration time.Duration) (Item[V], bool) {
+	it, ok := c.getOrSet(key, Item[V]{v: value, d: c.fixupDuration(duration)})
 	if !ok {
 		return Item[V]{}, ok
 	}
@@ -75,11 +79,7 @@ func (c *Cache[K, V]) Set(key K, value V, duration time.Duration) bool {
 }
 
 func (c *Cache[K, V]) SetItem(key K, value V, duration time.Duration) Item[V] {
-	if c.o.defaultTTL == NoTTL && duration == DefaultTTL {
-		duration = NoTTL
-	}
-
-	return c.set(key, Item[V]{v: value, d: duration})
+	return c.set(key, Item[V]{v: value, d: c.fixupDuration(duration)})
 }
 
 func (c *Cache[K, V]) Delete(key K) {
