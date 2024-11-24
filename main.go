@@ -50,6 +50,8 @@ import (
 	"github.com/titlerr/upgraderr/pkg/timecache"
 	"github.com/titlerr/upgraderr/pkg/ttlcache"
 	bolt "go.etcd.io/bbolt"
+
+	_ "net/http/pprof"
 )
 
 type Entry struct {
@@ -102,6 +104,10 @@ var globalTime = timecache.New(timecache.Options{})
 
 func main() {
 	initDatabase()
+
+	go func() {
+		http.ListenAndServe("localhost:6060", nil)
+	}()
 
 	r := chi.NewRouter()
 
