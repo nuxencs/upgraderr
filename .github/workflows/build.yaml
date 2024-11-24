@@ -124,45 +124,10 @@ jobs:
           paths: "unit-tests.xml"
         if: always() && startsWith(matrix.os, 'windows') == false
 
-  pgo:
-    strategy:
-      fail-fast: true
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        cgo: [ 1, 0 ]
-    name: Automatic PGO ${{ matrix.cgo == 1 && 'CGO ' || ''}}run ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    env:
-      GOPATH: ${{ startsWith(matrix.os, 'windows') && 'D:\golang\go' || '' }}
-      GOCACHE: ${{ startsWith(matrix.os, 'windows') && 'D:\golang\cache' || '' }}
-      GOMODCACHE: ${{ startsWith(matrix.os, 'windows') && 'D:\golang\modcache' || '' }}
-      USERPROFILE: ${{ startsWith(matrix.os, 'windows') && 'D:\homedir' || '' }}
-      CGO_ENABLED: ${{ matrix.cgo }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true
-
-      - name: Generate Profile
-        run: go run cmd/autobrr/main.go --pgo cpu-${{ matrix.os }}-${{ matrix.cgo }}.pprof
-
-      - name: Upload pprof
-        uses: actions/upload-artifact@v4
-        with:
-          name: pprof-pgo-${{ matrix.os }}-${{ matrix.cgo }}
-          path: cpu-${{ matrix.os }}-${{ matrix.cgo }}.pprof
-
   goprofilecombine:
     name: Combine pprof profiles
     runs-on: ubuntu-latest
-    needs: [pgo, test, testother]
+    needs: [test, testother]
     steps:
       - name: Download pprof profiles
         uses: actions/download-artifact@v4
