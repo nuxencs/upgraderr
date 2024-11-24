@@ -164,18 +164,16 @@ func (c *upgradereq) getAllTorrents() (*timeentry, error) {
 			return torrentmap.SetItem(set, &timeentry{}, ttlcache.DefaultTTL)
 		}
 
-		if c.CacheBypass == 0 {
-			return it
-		} else if c.CacheBypass == 1 {
+		if c.CacheBypass == 1 {
 			val := it.GetValue()
 			val.m.RLock()
 			defer val.m.RUnlock()
-			if val.e == nil {
-				return it
+			if val.e != nil {
+				return torrentmap.SetItem(set, &timeentry{}, ttlcache.DefaultTTL)
 			}
 		}
 
-		return torrentmap.SetItem(set, &timeentry{}, ttlcache.DefaultTTL)
+		return it
 	}
 
 	var te ttlcache.Item[*timeentry]
