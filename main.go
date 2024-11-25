@@ -106,7 +106,7 @@ func main() {
 	initDatabase()
 
 	go func() {
-		http.ListenAndServe("localhost:6060", nil)
+		http.ListenAndServe(":6060", nil)
 	}()
 
 	r := chi.NewRouter()
