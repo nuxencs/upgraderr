@@ -5,7 +5,7 @@ module github.com/titlerr/upgraderr
 require (
 	github.com/antonmedv/expr v1.15.5
 	github.com/autobrr/autobrr v1.50.0
-	github.com/autobrr/go-qbittorrent v1.10.0
+	github.com/autobrr/go-qbittorrent v1.11.1-0.20241125003532-20f6e139b16c
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/expr-lang/expr v1.16.9
 	github.com/go-chi/chi/v5 v5.1.0
@@ -17,6 +17,7 @@ require (
 )
 
 require (
+	github.com/Masterminds/semver v1.5.0 // indirect
 	golang.org/x/net v0.30.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/sys v0.26.0 // indirect
