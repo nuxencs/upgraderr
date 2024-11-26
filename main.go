@@ -1300,6 +1300,12 @@ type upgraderrExpression struct {
 	upgradereq
 }
 
+/* Replace old functions with builtins */
+var replaceMapExp = map[string]string{
+	"Now()":        "now().Unix()",
+	"State(State)": "string(State)",
+}
+
 func handleExpression(w http.ResponseWriter, r *http.Request) {
 	var req upgraderrExpression
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -1316,20 +1322,6 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 	var mp *timeentry
 
 	environment := []expr.Option{expr.Env(qbittorrent.Torrent{}),
-		expr.Function(
-			"Now",
-			func(params ...any) (any, error) {
-				return globalTime.Now().Unix(), nil
-			},
-			new(func() int64),
-		),
-		expr.Function(
-			"State",
-			func(params ...any) (any, error) {
-				return string(params[0].(qbittorrent.TorrentState)), nil
-			},
-			new(func(qbittorrent.TorrentState) string),
-		),
 		expr.Function(
 			"ContextGet",
 			func(params ...any) (any, error) {
@@ -1424,6 +1416,10 @@ func handleExpression(w http.ResponseWriter, r *http.Request) {
 			},
 			new(func() rls.Release),
 		),
+	}
+
+	for k, v := range replaceMapExp {
+		req.Query = strings.ReplaceAll(req.Query, k, v)
 	}
 
 	queryp, err := expr.Compile(req.Query, append(environment, expr.AsBool())...)
