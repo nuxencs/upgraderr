@@ -123,10 +123,6 @@ http://upgraderr.upgraderr:6940/api/expression
 * Sort
   * Higher values come first
 * Custom script functions
-  * Now()
-      - Unix timestamp
-  * State(State)
-      - Converts the torrent state to a string
   * ContextGet()
       - Retrieve a persisted string across a single run
   * ContextSet(string)
