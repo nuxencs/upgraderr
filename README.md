@@ -5,7 +5,7 @@ http://upgraderr.upgraderr:6940/api/upgrade
 { "host":"http://qbittorrent.cat:8080",
   "user":"zees",
   "password":"bsmom",
-  "name":"{{ .TorrentName | js }}" }
+  "name":{{ toRawJson .TorrentName }} }
 ```
 
 * Possible returns
@@ -19,7 +19,7 @@ http://upgraderr.upgraderr:6940/api/cross
 {  "host":"http://qbittorrent.cat:8080",
    "user":"zees",
    "password":"bsmom",
-   "name":"{{ .TorrentName | js }}",
+   "name":{{ toRawJson .TorrentName }},
    "hash":"{{ .TorrentHash }}",
    "torrent":"{{ .TorrentDataRawBytes | js }}" }
 ```
@@ -76,7 +76,7 @@ http://upgraderr.upgraderr:6940/api/expression
   "user":"zees",
   "password":"bsmom",
   "action":"start",
-  "query":"LastActivity != 0 && State(State) == 'stalledUP' && Now() - LastActivity > 800 && ((SeedingTime > 7776 && (NumComplete > 12 || NumIncomplete > 9)) || (SeedingTime > 10368 && (NumComplete + NumIncomplete >  8)))"
+  "query":"LastActivity != 0 && string(State) == 'stalledUP' && now().Unix() - LastActivity > 800 && ((SeedingTime > 7776 && (NumComplete > 12 || NumIncomplete > 9)) || (SeedingTime > 10368 && (NumComplete + NumIncomplete >  8)))"
  }
 ```
 
@@ -85,7 +85,7 @@ http://upgraderr.upgraderr:6940/api/expression
   "user":"zees",
   "password":"bsmom",
   "action":"reannounce",
-  "query":"DisableCrossseed() && State(State) in ['stalledDL', 'forcedDL', 'downloading'] && NumLeechs + NumSeeds < 3"
+  "query":"DisableCrossseed() && string(State) in ['stalledDL', 'forcedDL', 'downloading'] && NumLeechs + NumSeeds < 3"
  }
 ```
 
@@ -93,7 +93,7 @@ http://upgraderr.upgraderr:6940/api/expression
 { "host":"http://qbittorrent.cat:8080",
   "user":"zees",
   "password":"bsmom",
-  "query":"LastActivity > 604800 && ResultSkip(4000) && ResultLimit(10) && State(State) in ['stalledUP'] && NumLeechs + NumSeeds > 3 && SpaceAvailable('/') < 1024*1024*1024*200",
+  "query":"LastActivity > 604800 && ResultSkip(4000) && ResultLimit(10) && string(State) in ['stalledUP'] && NumLeechs + NumSeeds > 3 && SpaceAvailable('/') < 1024*1024*1024*200",
   "sort":"-CompletionOn"
  }
 ```
@@ -104,7 +104,7 @@ http://upgraderr.upgraderr:6940/api/expression
   "password":"bsmom",
   "action":"tagadd",
   "subject":"dageraad",
-  "query":"DisableCrossseed() && State(State) == 'downloading' && Tags not contains 'forkedRiver' && NumLeechs + NumSeeds > 7"
+  "query":"DisableCrossseed() && string(State) == 'downloading' && Tags not contains 'forkedRiver' && NumLeechs + NumSeeds > 7"
  }
 ```
 
